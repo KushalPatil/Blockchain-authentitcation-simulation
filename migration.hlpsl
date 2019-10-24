@@ -1,0 +1,77 @@
+role role_PreviousParent(PreviousParent:agent,Kbp:symmetric_key,Kbc:symmetric_key,Knb:symmetric_key,UniqidI:text,SND,RCV:channel(dy))
+played_by PreviousParent
+def=
+	local
+		State:nat,Uniqid:text,Idrequest:text
+	init
+		State := 0
+	transition
+		4. State=0 /\ RCV({Uniqid'.Idrequest'}_Kbp) =|> State':=1 /\ SND({UniqidI}_Kbp)
+end role
+
+role role_ParentB(ParentB:agent,NodeN:agent,Blockchain:agent,Knb:symmetric_key,Kbp:symmetric_key,Kbc:symmetric_key,SND,RCV:channel(dy))
+played_by ParentB
+def=
+	local
+		State:nat,PreviousParentID:text,Uniqid:text,Idrequest:text,UniqidI:text,Success:text
+	init
+		State := 0
+	transition
+		1. State=0 /\ RCV({Uniqid'}_Knb) =|> State':=1 /\ SND({Uniqid'}_Kbc)
+		3. State=1 /\ RCV({Uniqid.PreviousParentID'}_Kbc) =|> State':=2 /\ Idrequest':=new() /\ SND({Uniqid.Idrequest'}_Kbp)
+		5. State=2 /\ RCV({UniqidI'}_Kbp) =|> State':=3 /\ Success':=new() /\ secret(Success',sec_1,{NodeN,ParentB}) /\ SND({Success'}_Knb)
+end role
+
+role role_Blockchain(Blockchain:agent,ParentB:agent,PreviousParent:agent,PreviousParentID:text,Kbc:symmetric_key,SND,RCV:channel(dy))
+played_by Blockchain
+def=
+	local
+		State:nat,Uniqid:text
+	init
+		State := 0
+	transition
+		2. State=0 /\ RCV({Uniqid'}_Kbc) =|> State':=1 /\ SND({Uniqid'.PreviousParentID}_Kbc)
+end role
+
+role role_NodeN(NodeN:agent,PreviousParent:agent,ParentB:agent,Uniqid:text,Knb:symmetric_key,SND,RCV:channel(dy))
+played_by NodeN
+def=
+	local
+		State:nat,Success:text
+	init
+		State := 0
+	transition
+		1. State=0 /\ RCV(start) =|> State':=1 /\ SND({Uniqid}_Knb)
+		6. State=1 /\ RCV({Success'}_Knb) =|> State':=2 /\ secret(Success',sec_1,{NodeN,ParentB})
+end role
+
+role session1(UniqidI:text,Knb:symmetric_key,Kbp:symmetric_key,Uniqid:text,NodeN:agent,Blockchain:agent,ParentB:agent,PreviousParent:agent,PreviousParentID:text,Kbc:symmetric_key)
+def=
+	local
+		SND4,RCV4,SND3,RCV3,SND2,RCV2,SND1,RCV1:channel(dy)
+	composition
+		role_Blockchain(Blockchain,ParentB,PreviousParent,PreviousParentID,Kbc,SND4,RCV4) /\ role_PreviousParent(PreviousParent,Kbp,Kbc,Knb,UniqidI,SND3,RCV3) /\ role_ParentB(ParentB,NodeN,Blockchain,Knb,Kbp,Kbc,SND2,RCV2) /\ role_NodeN(NodeN,PreviousParent,ParentB,Uniqid,Knb,SND1,RCV1)
+end role
+
+role session2(UniqidI:text,Knb:symmetric_key,Kbp:symmetric_key,Uniqid:text,NodeN:agent,Blockchain:agent,ParentB:agent,PreviousParent:agent,PreviousParentID:text,Kbc:symmetric_key)
+def=
+	local
+		SND4,RCV4,SND3,RCV3,SND2,RCV2,SND1,RCV1:channel(dy)
+	composition
+		role_Blockchain(Blockchain,ParentB,PreviousParent,PreviousParentID,Kbc,SND4,RCV4) /\ role_PreviousParent(PreviousParent,Kbp,Kbc,Knb,UniqidI,SND3,RCV3) /\ role_ParentB(ParentB,NodeN,Blockchain,Knb,Kbp,Kbc,SND2,RCV2) /\ role_NodeN(NodeN,PreviousParent,ParentB,Uniqid,Knb,SND1,RCV1)
+end role
+
+role environment()
+def=
+	const
+		previousParent:agent,blockchain:agent,kib:symmetric_key,hash_0:hash_func,const_1:text,knb:symmetric_key,nodeN:agent,kbp:symmetric_key,parentB:agent,kbc:symmetric_key,sec_1:protocol_id
+	intruder_knowledge = {nodeN,parentB,previousParent,kib}
+	composition
+		session2(const_1,kib,kbp,const_1,i,blockchain,parentB,previousParent,const_1,kbc) /\ session1(const_1,knb,kbp,const_1,nodeN,blockchain,parentB,previousParent,const_1,kbc)
+end role
+
+goal
+	secrecy_of sec_1
+end goal
+
+environment()

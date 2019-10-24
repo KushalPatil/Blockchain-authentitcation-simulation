@@ -1,0 +1,66 @@
+role role_Newnode(Newnode:agent,ClusterAdmin:agent,AuthRequest:text,Knc:symmetric_key,Kn:public_key,SND,RCV:channel(dy))
+played_by Newnode
+def=
+	local
+		State:nat,Challenge:text,T:text,Solution:text,Uniqid:text,Success:text
+	init
+		State := 0
+	transition
+		1. State=0 /\ RCV(start) =|> State':=1 /\ SND({AuthRequest}_Knc)
+		2. State=1 /\ RCV({Challenge'.T'}_Knc) =|> State':=2 /\ Solution':=new() /\ SND({Solution'.inv(Kn)}_Knc)
+		4. State=2 /\ RCV({Uniqid'.Success'}_inv(Kn)) =|> State':=3 /\ request(Newnode,ClusterAdmin,auth_1,Uniqid')
+end role
+
+role role_ClusterAdmin(Newnode:agent,ClusterAdmin:agent,OtherClusterAdmins:agent,Kn:public_key,Knc:symmetric_key,Kcc:symmetric_key,T:text,SND,RCV:channel(dy))
+played_by ClusterAdmin
+def=
+	local
+		State:nat,AuthRequest:text,Challenge:text,Solution:text,Success:text,Uniqid:text
+	init
+		State := 0
+	transition
+		1. State=0 /\ RCV({AuthRequest'}_Knc) =|> State':=1 /\ Challenge':=new() /\ SND({Challenge'.T}_Knc)
+		3. State=1 /\ RCV({Solution'.inv(Kn)}_Knc) =|> State':=2 /\ Success':=new() /\ Uniqid':=new() /\ witness(ClusterAdmin,Newnode,auth_1,Uniqid') /\ SND({Uniqid'.Success'}_inv(Kn)) /\ SND({Uniqid'}_Kcc)
+end role
+
+role role_OtherClusterAdmins(OtherClusterAdmins:agent,Newnode:agent,ClusterAdmin:agent,Kn:public_key,Kcc:symmetric_key,Knc:symmetric_key,SND,RCV:channel(dy))
+played_by OtherClusterAdmins
+def=
+	local
+		State:nat,Uniqid:text
+	init
+		State := 0
+	transition
+		5. State=0 /\ RCV({Uniqid'}_Kcc) =|> State':=1
+end role
+
+role session1(T:text,AuthRequest:text,OtherClusterAdmins:agent,Newnode:agent,ClusterAdmin:agent,Kn:public_key,Kcc:symmetric_key,Knc:symmetric_key)
+def=
+	local
+		SND3,RCV3,SND2,RCV2,SND1,RCV1:channel(dy)
+	composition
+		role_OtherClusterAdmins(OtherClusterAdmins,Newnode,ClusterAdmin,Kn,Kcc,Knc,SND3,RCV3) /\ role_ClusterAdmin(Newnode,ClusterAdmin,OtherClusterAdmins,Kn,Knc,Kcc,T,SND2,RCV2) /\ role_Newnode(Newnode,ClusterAdmin,AuthRequest,Knc,Kn,SND1,RCV1)
+end role
+
+role session2(T:text,AuthRequest:text,OtherClusterAdmins:agent,Newnode:agent,ClusterAdmin:agent,Kn:public_key,Kcc:symmetric_key,Knc:symmetric_key)
+def=
+	local
+		SND3,RCV3,SND2,RCV2,SND1,RCV1:channel(dy)
+	composition
+		role_OtherClusterAdmins(OtherClusterAdmins,Newnode,ClusterAdmin,Kn,Kcc,Knc,SND3,RCV3) /\ role_ClusterAdmin(Newnode,ClusterAdmin,OtherClusterAdmins,Kn,Knc,Kcc,T,SND2,RCV2) /\ role_Newnode(Newnode,ClusterAdmin,AuthRequest,Knc,Kn,SND1,RCV1)
+end role
+
+role environment()
+def=
+	const
+		kcc:symmetric_key,clusteradmin:agent,knc:symmetric_key,newnode:agent,const_1:text,hash_0:hash_func,otherclusteradmins:agent,kn:public_key,kic:symmetric_key,auth_1:protocol_id
+	intruder_knowledge = {newnode,clusteradmin,kic,kn}
+	composition
+		session2(const_1,const_1,otherclusteradmins,i,clusteradmin,kn,kcc,kic) /\ session1(const_1,const_1,otherclusteradmins,newnode,clusteradmin,kn,kcc,knc)
+end role
+
+goal
+	authentication_on auth_1
+end goal
+
+environment()
